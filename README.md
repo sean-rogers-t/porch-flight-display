@@ -6,11 +6,13 @@ A browser emulator for an internet-connected LED sign that shows where overhead 
 
 ## Try it
 
-Open **`index.html`** in a modern browser. Everything is embedded, including the six city icons. No installation, account, API key, or internet connection is needed to run the emulator.
+**[Open the live emulator](https://sean-rogers-t.github.io/porch-flight-display/)** from any computer or phone.
 
-1. Switch between the four display layouts.
+Open **`index.html`** in a modern browser. Everything is embedded, including prepared pixel artwork for all six cities. No installation, account, API key, or internet connection is needed to run the emulator.
+
+1. Compare the three larger-landmark layouts, E–G. All keep the city and landmark together in a 2:1 rectangle, starting at 128 × 64 LEDs, the same default resolution as D.
 2. Choose a sample city and compare 32, 64, and 128 LED rows.
-3. Select **D · Reveal**, then **Play samples**, to watch the city, landmark, and combined views in sequence.
+3. Expand **Earlier layouts A–D** to compare the originals. Select **D · Reveal**, then **Play samples**, to watch the city, landmark, and combined views in sequence.
 4. Adjust brightness and hold time, pause the sequence, or step through manually.
 
 | Layout | Display face | Arrangement |
@@ -19,12 +21,17 @@ Open **`index.html`** in a modern browser. Everything is embedded, including the
 | B · Postcard | 1:1 | City above its landmark |
 | C · Skyline | 3:1 | City above a schematic skyline and landmark |
 | D · Reveal | 2:1 | City, landmark, and combined views in sequence |
+| E · Landmark beside city | 2:1 | Larger landmark at left, complete city name at right; default |
+| F · City below | 2:1 | Wide landmark area above a small city caption |
+| G · City above | 2:1 | City heading above a wide landmark area |
+
+At 128 × 64 LEDs, E reserves 64 × 58 pixels for the landmark, F reserves 120 × 49, and G reserves 120 × 43, compared with approximately 40 × 54 in A. Each icon retains its original proportions, so a tall tower will not fill the same width as a bridge. E–G omit the extra airport route labels to give that space to the city and artwork.
 
 Sample origins: New York (LGA), London (LHR), Paris (CDG), San Francisco (SFO), Seattle (SEA), and Tokyo (HND). All sample destinations are Chicago O’Hare (ORD). These samples do not represent current flights.
 
 ## How it works
 
-The renderer draws a whole-pixel bitmap font and rasterizes city SVGs into a selectable LED grid. A second canvas renders the grid as amber LED dots. The animation moves between pixel buffers, so it represents a sequence that could later run on LED hardware.
+The renderer draws a whole-pixel bitmap font and samples prepared landmark alpha pixels into the selected LED grid. It clears the visible canvas directly before drawing each complete frame as amber LED dots. Artwork is available immediately, without browser image decoding, offscreen canvases, or question-mark placeholders. Manual selections replace the display immediately; sample playback can animate between pixel buffers.
 
 The 32-row setting intentionally shows the limits of coarse panels: small details are omitted and long names may occupy the entire sign. Skyline context buildings are schematic, not geographically accurate. Browser size and brightness are not calibrated to physical dimensions or light output; weather resistance and electrical behavior are not emulated.
 
@@ -49,15 +56,27 @@ Open http://127.0.0.1:8000/ .
 | `porch-display.template.html` | Interface, sample data, LED font, and rendering logic |
 | `standalone.css` | Browser styles for the controls surrounding the sign |
 | `assets/` | Original city SVG artwork |
-| `build_emulator.py` | Embeds artwork and builds both outputs |
+| `assets/landmark-pixels.json` | Prepared landmark pixels and source hashes |
+| `rasterize_artwork.cjs` | Optional SVG-to-pixel preparation using Sharp |
+| `build_emulator.py` | Validates prepared artwork and builds both outputs |
 | `index.html` | Self-contained browser application |
 | `porch-display.html` | Self-contained conversation visualization fragment |
 
 Both generated HTML files are checked in so the emulator works immediately after cloning or downloading the repository. Rebuild them after editing the template, CSS, or artwork.
 
+Only when changing the original SVG artwork, regenerate its pixel data first (Node.js and Sharp required):
+
+```sh
+npm install --no-save --no-package-lock sharp@0.35.4
+node rasterize_artwork.cjs
+python build_emulator.py
+```
+
+Normal layout changes still require only the Python build. Source hashes prevent an outdated pixel asset from silently being used after an SVG edit.
+
 ## Next steps
 
-- Choose the preferred aspect ratio and minimum resolution.
+- Refine the selected 2:1 aspect ratio and choose the preferred landmark arrangement.
 - Refine library artwork for small LED grids.
 - Add a flight-data adapter that separates live positions from route information.
 - Tune aircraft selection to the visible sky and avoid rapid switching between nearby planes.
@@ -72,3 +91,13 @@ The six original SVG files were downloaded on 2026-09-11. The emulator crops, ra
 ## Validation
 
 The original emulator was checked in a browser across all six icons, all four layouts, and all three resolutions. City selection, manual reveal phases, brightness, timing, automatic advancement, pause, and finite six-flight completion were verified. The standalone page was also checked at 736px and 360px widths: all six icons loaded, city and layout selection worked, reveal phases rendered, and there was no horizontal overflow at 360px. No browser warnings or errors were reported.
+
+The larger-landmark update was checked across all 54 combinations of E–G, six cities, and three resolutions. Every combination loaded all six icons, rendered lit pixels, preserved its selected city and resolution, and retained the 2:1 ratio. New York and San Francisco were visually inspected, including the complete long city name at 360px. No browser warnings or errors were reported.
+
+The redraw fix adds regression checks for immediate artwork availability in a restricted renderer without image APIs, all 54 E–G combinations, identical frames when returning to a previous selection, and rejection of stale animation callbacks. Run them after building:
+
+```sh
+node --test tests/renderer.test.cjs
+```
+
+A browser screenshot comparison also verified that switching through different cities and layouts and returning to New York produces exactly the original canvas image.

@@ -3,7 +3,7 @@
 Usage: python build_emulator.py
 Requires Python 3.10+, standard library only. No network access is used.
 """
-import base64
+import hashlib
 import json
 from pathlib import Path
 
@@ -15,12 +15,21 @@ ICON_NAMES = (
 
 
 def build() -> None:
-    artwork = {}
+    artwork = json.loads((ROOT / 'assets' / 'landmark-pixels.json').read_text(encoding='utf-8'))
+    if artwork.get('version') != 1 or set(artwork.get('images', {})) != set(ICON_NAMES):
+        raise ValueError('Expected pixel artwork for all six cities')
     for name in ICON_NAMES:
         svg = (ROOT / 'assets' / f'{name}.svg').read_bytes()
         if b'<svg' not in svg or b'<script' in svg.lower() or b'<foreignobject' in svg.lower():
             raise ValueError(f'Unexpected icon content: {name}')
-        artwork[name] = base64.b64encode(svg).decode('ascii')
+        art = artwork['images'][name]
+        if art['sourceSha256'] != hashlib.sha256(svg).hexdigest():
+            raise ValueError(f'Artwork changed: run node rasterize_artwork.cjs for {name}')
+        alpha = bytes.fromhex(art['alpha'])
+        if not (0 < art['width'] <= 240 and 0 < art['height'] <= 240):
+            raise ValueError(f'Unexpected artwork dimensions: {name}')
+        if len(alpha) != art['width'] * art['height'] or not any(alpha):
+            raise ValueError(f'Empty or incomplete pixel artwork: {name}')
 
     template = (ROOT / 'porch-display.template.html').read_text(encoding='utf-8')
     if template.count('__ICON_DATA__') != 1:
@@ -36,7 +45,7 @@ def build() -> None:
         '<head>',
         '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
-        '<meta name="description" content="Try four amber LED flight-origin displays with city landmark icons.">',
+        '<meta name="description" content="Compare amber LED flight-origin layouts with larger city landmarks.">',
         '<title>Porch Flight Display</title>',
         '<style>', css, '</style>',
         '</head>',

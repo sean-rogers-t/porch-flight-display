@@ -2,6 +2,8 @@
   <style>
     #porch-display-emulator .pd-top { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
     #porch-display-emulator .pd-layouts { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+    #porch-display-emulator .pd-earlier { margin-bottom:14px; }
+    #porch-display-emulator .pd-earlier summary { cursor:pointer; margin-bottom:8px; }
     #porch-display-emulator .pd-controls { display:grid; grid-template-columns:1.25fr 1fr; gap:12px; margin-bottom:16px; }
     #porch-display-emulator .pd-field { display:grid; gap:5px; min-width:0; }
     #porch-display-emulator .pd-stage { --pd-case:#222328; --pd-face:#080a0b; --pd-rim:#45464a; padding:26px 22px; display:flex; justify-content:center; align-items:center; background:light-dark(#e3e4e6,#17191d); border-radius:4px; }
@@ -22,12 +24,20 @@
     <strong>Porch display lab</strong>
     <span class="text-small text-muted">Sample flights · no live tracking</span>
   </div>
-  <div class="pd-layouts" role="group" aria-label="Display layout">
-    <button class="btn" type="button" data-layout="a" aria-pressed="true">A · City + symbol</button>
-    <button class="btn" type="button" data-layout="b" aria-pressed="false">B · Postcard</button>
-    <button class="btn" type="button" data-layout="c" aria-pressed="false">C · Skyline</button>
-    <button class="btn" type="button" data-layout="d" aria-pressed="false">D · Reveal</button>
+  <div class="pd-layouts" role="group" aria-label="Larger landmark layouts">
+    <button class="btn" type="button" data-layout="e" aria-pressed="true">E · Landmark beside city</button>
+    <button class="btn" type="button" data-layout="f" aria-pressed="false">F · City below</button>
+    <button class="btn" type="button" data-layout="g" aria-pressed="false">G · City above</button>
   </div>
+  <details class="pd-earlier">
+    <summary>Earlier layouts A–D</summary>
+    <div class="pd-layouts" role="group" aria-label="Earlier display layouts">
+      <button class="btn" type="button" data-layout="a" aria-pressed="false">A · City + symbol</button>
+      <button class="btn" type="button" data-layout="b" aria-pressed="false">B · Postcard</button>
+      <button class="btn" type="button" data-layout="c" aria-pressed="false">C · Skyline</button>
+      <button class="btn" type="button" data-layout="d" aria-pressed="false">D · Reveal</button>
+    </div>
+  </details>
   <div class="pd-controls">
     <label class="pd-field form-label">Sample origin
       <select class="form-select" id="pd-city">
@@ -79,8 +89,6 @@
     const el = id => root.querySelector('#' + id);
     const canvas = el('pd-canvas');
     const ctx = canvas.getContext('2d');
-    const base = document.createElement('canvas');
-    const baseCtx = base.getContext('2d');
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
     const cities = [
       { name:'NEW YORK', code:'LGA', airport:'LaGuardia', icon:'us-new-york', landmark:'Statue of Liberty' },
@@ -130,17 +138,16 @@
       '9':['01110','10001','10001','01111','00001','00001','01110'],
       '>':['000','100','010','001','010','100','000'],
       '-':['000','000','000','111','000','000','000'],
-      '?':['11110','00001','00001','00110','00100','00000','00100'],
       ' ':['000','000','000','000','000','000','000']
     };
-    const state = { layout:'a', city:0, rows:64, brightness:75, hold:4, phase:0, playing:false, remaining:0 };
+    const state = { layout:'e', city:0, rows:64, brightness:75, hold:4, phase:0, playing:false, remaining:0 };
     const artwork = new Map();
     const masks = new Map();
     let cols = 128, rows = 64, pixels = new Uint8Array(cols * rows);
     let intervalId = null, animationId = null, phaseStarted = 0, pausedElapsed = 0, ready = false;
-    let artErrors = [];
+    let renderVersion = 0;
     const dotPitch = 6;
-    const measure = (text, scale=1) => Math.max(0, [...text].reduce((n,c) => n + (font[c] || font['?'])[0].length + 1, 0) - 1) * scale;
+    const measure = (text, scale=1) => Math.max(0, [...text].reduce((n,c) => n + (font[c] || font[' '])[0].length + 1, 0) - 1) * scale;
     function rect(x, y, w, h, value=255) {
       x=Math.round(x); y=Math.round(y); w=Math.round(w); h=Math.round(h);
       for(let py=Math.max(0,y); py<Math.min(rows,y+h); py++)
@@ -149,7 +156,7 @@
     function text(str,x,y,scale=1,value=255) {
       x=Math.round(x); y=Math.round(y);
       for(const char of str) {
-        const glyph=font[char] || font['?'];
+        const glyph=font[char] || font[' '];
         glyph.forEach((line,gy) => [...line].forEach((bit,gx) => { if(bit==='1') rect(x+gx*scale,y+gy*scale,scale,scale,value); }));
         x+=(glyph[0].length+1)*scale;
       }
@@ -183,18 +190,29 @@
     }
     function icon(key,x,y,w,h,value=255) {
       const art=artwork.get(key);
-      if(!art) { fitText('?',x,y,w,h,Math.max(1,Math.floor(h/9))); return; }
+      if(!art) throw new Error('Missing pixel artwork: '+key);
       w=Math.max(1,Math.floor(w)); h=Math.max(1,Math.floor(h));
       const cacheKey=key+':'+w+':'+h;
       if(!masks.has(cacheKey)) {
-        const off=document.createElement('canvas'); off.width=w; off.height=h;
-        const oc=off.getContext('2d',{willReadFrequently:true});
         const scale=Math.min(w/art.width,h/art.height);
         const dw=Math.max(1,Math.round(art.width*scale)), dh=Math.max(1,Math.round(art.height*scale));
-        oc.drawImage(art,(w-dw)/2,(h-dh)/2,dw,dh);
-        const rgba=oc.getImageData(0,0,w,h).data;
         const mask=new Uint8Array(w*h);
-        for(let i=0;i<mask.length;i++) mask[i]=rgba[i*4+3]>=66 ? 255 : 0;
+        const left=Math.floor((w-dw)/2), top=Math.floor((h-dh)/2);
+        // Area-average the prepared alpha pixels into actual LED cells. No browser
+        // image decoding, offscreen canvas, or image readback is required.
+        for(let dy=0;dy<dh;dy++) for(let dx=0;dx<dw;dx++) {
+          const x0=dx*art.width/dw, x1=(dx+1)*art.width/dw;
+          const y0=dy*art.height/dh, y1=(dy+1)*art.height/dh;
+          let coverage=0;
+          for(let sy=Math.floor(y0);sy<Math.ceil(y1);sy++) {
+            const weightY=Math.min(sy+1,y1)-Math.max(sy,y0);
+            for(let sx=Math.floor(x0);sx<Math.ceil(x1);sx++) {
+              const weightX=Math.min(sx+1,x1)-Math.max(sx,x0);
+              coverage+=art.alpha[sy*art.width+sx]*weightX*weightY;
+            }
+          }
+          if(coverage/((x1-x0)*(y1-y0))>=66) mask[(top+dy)*w+left+dx]=255;
+        }
         masks.set(cacheKey,mask);
       }
       const mask=masks.get(cacheKey);
@@ -234,6 +252,27 @@
       icon(city.icon,7*r,iconTop,cols-14*r,52*r-iconTop);
       fitText(city.code+' > ORD',2*r,55*r,cols-4*r,7*r,Math.floor(r));
     }
+    // These three arrangements keep both the name and landmark visible at 2:1.
+    // At 128 x 64, A reserves about 40 x 54 pixels for art; E reserves 64 x 58,
+    // F reserves 120 x 49, and G reserves 120 x 43. Artwork is never stretched.
+    function landmarkBeside(city) {
+      const r=rows/64;
+      icon(city.icon,3*r,3*r,64*r,58*r);
+      fitText(city.name,72*r,3*r,53*r,58*r,Math.max(1,Math.floor(2*r)));
+    }
+    function cityBelow(city) {
+      const r=rows/64;
+      const captionHeight=rows===32 && measure(city.name)>122*r?15:Math.max(8,8*r);
+      const captionY=rows-2*r-captionHeight;
+      icon(city.icon,4*r,2*r,120*r,captionY-5*r);
+      fitText(city.name,3*r,captionY,122*r,captionHeight,Math.max(1,Math.floor(r)));
+    }
+    function cityAbove(city) {
+      const r=rows/64;
+      const titleHeight=Math.max(15,15*r), iconY=titleHeight+4*r;
+      fitText(city.name,3*r,2*r,122*r,titleHeight,Math.max(1,Math.floor(2*r)));
+      icon(city.icon,4*r,iconY,120*r,rows-iconY-2*r);
+    }
     function skyline(city) {
       const r=rows/64;
       fitText(city.name,5*r,3*r,cols-10*r,15*r,Math.floor(2*r));
@@ -267,19 +306,20 @@
         fitText(caption,2*r,Math.round(50*r),cols-4*r,rows-Math.round(50*r),Math.max(1,Math.floor(r)));
       }
     }
-    function makeBase() {
+    function sizeDisplay() {
       canvas.width=cols*dotPitch; canvas.height=rows*dotPitch;
-      base.width=canvas.width; base.height=canvas.height;
-      baseCtx.fillStyle='#080a0b'; baseCtx.fillRect(0,0,base.width,base.height);
-      baseCtx.fillStyle='#1a1a1a'; baseCtx.beginPath();
-      for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) {
-        baseCtx.moveTo(x*6+4.7,y*6+3);
-        baseCtx.arc(x*6+3,y*6+3,1.7,0,Math.PI*2);
-      }
-      baseCtx.fill();
     }
     function paint(frame=pixels) {
-      ctx.drawImage(base,0,0);
+      // Clear the visible surface itself; never depend on copying a hidden canvas.
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.globalAlpha=1;
+      ctx.fillStyle='#080a0b'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#1a1a1a'; ctx.beginPath();
+      for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) {
+        ctx.moveTo(x*6+4.7,y*6+3);
+        ctx.arc(x*6+3,y*6+3,1.7,0,Math.PI*2);
+      }
+      ctx.fill();
       const b=state.brightness/100;
       for(const level of [120,150,190,255]) {
         const power=(level/255)*(.2+.8*b);
@@ -292,32 +332,39 @@
         ctx.fill();
       }
     }
+    function cancelTransition() {
+      renderVersion++;
+      if(animationId!==null) cancelAnimationFrame(animationId);
+      animationId=null;
+    }
     function draw(animate=false) {
+      cancelTransition();
+      const version=renderVersion;
       const previous=pixels.slice(), oldCols=cols, oldRows=rows;
       rows=state.rows;
       cols=rows*(state.layout==='b'?1:state.layout==='c'?3:2);
       const changed=cols!==oldCols || rows!==oldRows;
-      if(changed || !base.width) makeBase();
+      if(changed || canvas.width!==cols*dotPitch || canvas.height!==rows*dotPitch) sizeDisplay();
       pixels=new Uint8Array(cols*rows);
       const city=cities[state.city];
-      ({a:combined,b:postcard,c:skyline,d:reveal})[state.layout](city);
+      ({a:combined,b:postcard,c:skyline,d:reveal,e:landmarkBeside,f:cityBelow,g:cityAbove})[state.layout](city);
       el('pd-sign').style.maxWidth=state.layout==='b'?'370px':'100%';
       el('pd-spec').textContent=cols+' × '+rows+' LEDs · '+(cols/rows)+':1';
       el('pd-phase').hidden=state.layout!=='d';
       el('pd-phase').textContent=['Show landmark','Show both','Show city'][state.phase];
-      const phase=state.layout==='d'?['City first','Landmark','City + symbol'][state.phase]:({a:'City + symbol',b:'Postcard',c:'Schematic skyline'})[state.layout];
+      const phase=state.layout==='d'?['City first','Landmark','City + symbol'][state.phase]:({a:'City + symbol',b:'Postcard',c:'Schematic skyline',e:'Landmark beside city',f:'City below',g:'City above'})[state.layout];
       el('pd-status').textContent=city.name+' · '+city.code+' → ORD · '+phase;
       el('pd-note').textContent=state.layout==='c'?'Skyline buildings are schematic; the central landmark comes from the city library.':'Pixel layout preview; screen brightness and size are not calibrated to real hardware.';
+      if(['e','f','g'].includes(state.layout)) el('pd-note').textContent='City and landmark stay together. '+({e:'More space beside the name.',f:'A small caption leaves more height for the landmark.',g:'A larger heading leaves a wide area for the landmark.'})[state.layout]+' Display size and brightness are simulated.';
       if(rows===32) el('pd-note').textContent+=' Coarse mode omits small details; long city names may use the whole sign.';
-      if(artErrors.length) el('pd-note').textContent+=' Artwork unavailable: '+artErrors.join(', ')+'.';
       canvas.setAttribute('aria-label',phase+' layout. Sample flight from '+city.name+', '+city.airport+', to Chicago O’Hare. Landmark: '+city.landmark+'. '+cols+' by '+rows+' LEDs.');
       root.dataset.city=String(state.city); root.dataset.phase=String(state.phase); root.dataset.layout=state.layout;
       root.dataset.cols=String(cols); root.dataset.rows=String(rows);
       root.dataset.litPixels=String(pixels.reduce((n,v)=>n+(v>0),0));
-      if(animationId) cancelAnimationFrame(animationId);
       if(animate && !changed && !reducedMotion.matches) {
         const started=performance.now(), finalFrame=pixels.slice();
         function slide(now) {
+          if(version!==renderVersion) return;
           const t=Math.min(1,(now-started)/360), eased=1-Math.pow(1-t,3), shift=Math.round(eased*cols);
           const frame=new Uint8Array(cols*rows);
           for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) frame[y*cols+x]=x+shift<cols?previous[y*cols+x+shift]:finalFrame[y*cols+x+shift-cols];
@@ -339,6 +386,8 @@
       root.dataset.playing=String(state.playing);
     }
     function stop(reset=true) {
+      cancelTransition();
+      if(ready) paint();
       if(intervalId) clearInterval(intervalId);
       intervalId=null;
       if(state.playing) pausedElapsed=Math.max(1,performance.now()-phaseStarted);
@@ -365,36 +414,24 @@
     root.querySelectorAll('[data-layout]').forEach(button=>button.addEventListener('click',()=>{
       stop(); state.layout=button.dataset.layout; state.phase=0; sync(); draw();
     }));
-    el('pd-city').addEventListener('change',event=>{ const value=Number(event.target.value); stop(); state.city=value; state.phase=0; sync(); draw(true); });
+    el('pd-city').addEventListener('change',event=>{ const value=Number(event.target.value); stop(); state.city=value; state.phase=0; sync(); draw(); });
     el('pd-resolution').addEventListener('change',event=>{ const value=Number(event.target.value); stop(); state.rows=value; sync(); draw(); });
     el('pd-play').addEventListener('click',play);
-    el('pd-next').addEventListener('click',()=>{ stop(); state.city=(state.city+1)%cities.length; state.phase=0; sync(); draw(true); });
-    el('pd-phase').addEventListener('click',()=>{ stop(); state.phase=(state.phase+1)%3; sync(); draw(true); });
-    el('pd-bright').addEventListener('input',event=>{ state.brightness=Number(event.target.value); sync(); if(animationId) { cancelAnimationFrame(animationId); animationId=null; } paint(); });
+    el('pd-next').addEventListener('click',()=>{ stop(); state.city=(state.city+1)%cities.length; state.phase=0; sync(); draw(); });
+    el('pd-phase').addEventListener('click',()=>{ stop(); state.phase=(state.phase+1)%3; sync(); draw(); });
+    el('pd-bright').addEventListener('input',event=>{ state.brightness=Number(event.target.value); sync(); cancelTransition(); paint(); });
     el('pd-hold').addEventListener('input',event=>{ state.hold=Number(event.target.value); if(state.playing) phaseStarted=performance.now(); pausedElapsed=0; sync(); });
     document.addEventListener('visibilitychange',()=>{ if(document.hidden && state.playing) stop(false); });
-    // All six SVGs are embedded. No external requests or flight credentials are used.
+    // Artwork is available synchronously, including in hosts without an Image API.
     const embedded=JSON.parse(el('pd-icon-data').textContent);
-    async function loadArtwork(city) {
-      try {
-        const img=new Image();
-        img.src='data:image/svg+xml;base64,'+embedded[city.icon];
-        await img.decode();
-        const tmp=document.createElement('canvas'); tmp.width=240; tmp.height=240;
-        const tc=tmp.getContext('2d',{willReadFrequently:true}); tc.drawImage(img,0,0,240,240);
-        const rgba=tc.getImageData(0,0,240,240).data;
-        let minX=240,minY=240,maxX=-1,maxY=-1;
-        for(let y=0;y<240;y++) for(let x=0;x<240;x++) if(rgba[(y*240+x)*4+3]>65) { minX=Math.min(x,minX); minY=Math.min(y,minY); maxX=Math.max(x,maxX); maxY=Math.max(y,maxY); }
-        if(maxX<minX) throw new Error('Empty icon');
-        const cropped=document.createElement('canvas'); cropped.width=maxX-minX+1; cropped.height=maxY-minY+1;
-        cropped.getContext('2d').drawImage(tmp,minX,minY,cropped.width,cropped.height,0,0,cropped.width,cropped.height);
-        artwork.set(city.icon,cropped);
-      } catch(error) { artErrors.push(city.name); }
+    for(const city of cities) {
+      const data=embedded.images[city.icon];
+      const alpha=new Uint8Array(data.width*data.height);
+      for(let i=0;i<alpha.length;i++) alpha[i]=parseInt(data.alpha.slice(i*2,i*2+2),16);
+      artwork.set(city.icon,{width:data.width,height:data.height,alpha});
     }
-    makeBase(); sync(); draw();
-    Promise.all(cities.map(loadArtwork)).then(()=>{
-      ready=true; root.dataset.ready='true'; root.dataset.artworkCount=String(artwork.size); draw();
-    });
+    ready=true; root.dataset.ready='true'; root.dataset.artworkCount=String(artwork.size);
+    sizeDisplay(); sync(); draw();
   })();
   </script>
 </div>
