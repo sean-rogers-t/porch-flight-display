@@ -25,8 +25,8 @@
     <span class="text-small text-muted">Sample flights · no live tracking</span>
   </div>
   <div class="pd-layouts" role="group" aria-label="Larger landmark layouts">
-    <button class="btn" type="button" data-layout="e" aria-pressed="false">E · Landmark beside city</button>
-    <button class="btn" type="button" data-layout="f" aria-pressed="true">F · City below</button>
+    <button class="btn" type="button" data-layout="e" aria-pressed="true">E · Landmark beside city</button>
+    <button class="btn" type="button" data-layout="f" aria-pressed="false">F · City below</button>
     <button class="btn" type="button" data-layout="g" aria-pressed="false">G · City above</button>
   </div>
   <details class="pd-earlier">
@@ -140,7 +140,7 @@
       '-':['000','000','000','111','000','000','000'],
       ' ':['000','000','000','000','000','000','000']
     };
-    const state = { layout:'f', city:0, rows:64, brightness:75, hold:4, phase:0, playing:false, remaining:0 };
+    const state = { layout:'e', city:0, rows:64, brightness:75, hold:4, phase:0, playing:false, remaining:0 };
     const artwork = new Map();
     const masks = new Map();
     let cols = 128, rows = 64, pixels = new Uint8Array(cols * rows);
@@ -153,11 +153,11 @@
       for(let py=Math.max(0,y); py<Math.min(rows,y+h); py++)
         for(let px=Math.max(0,x); px<Math.min(cols,x+w); px++) pixels[py*cols+px]=value;
     }
-    function text(str,x,y,scale=1,value=255) {
+    function text(str,x,y,scale=1,value=255,scaleY=scale) {
       x=Math.round(x); y=Math.round(y);
       for(const char of str) {
         const glyph=font[char] || font[' '];
-        glyph.forEach((line,gy) => [...line].forEach((bit,gx) => { if(bit==='1') rect(x+gx*scale,y+gy*scale,scale,scale,value); }));
+        glyph.forEach((line,gy) => [...line].forEach((bit,gx) => { if(bit==='1') rect(x+gx*scale,y+gy*scaleY,scale,scaleY,value); }));
         x+=(glyph[0].length+1)*scale;
       }
     }
@@ -253,7 +253,7 @@
       fitText(city.code+' > ORD',2*r,55*r,cols-4*r,7*r,Math.floor(r));
     }
     // These three arrangements keep both the name and landmark visible at 2:1.
-    // At 128 x 64, A reserves about 40 x 54 pixels for art; E reserves 64 x 49.
+    // At 128 x 64, A reserves about 40 x 54 pixels for art; E reserves 64 x 62.
     // F and G reserve 120 x 49 (41 when a long city name wraps).
     // Artwork is never stretched.
     function flightMetadata(city,y,scale) {
@@ -264,11 +264,32 @@
     }
     function landmarkBeside(city) {
       const r=rows/64, scale=Math.max(1,Math.floor(r));
-      const footerY=rows-2*r-7*scale;
-      icon(city.icon,3*r,3*r,64*r,footerY-6*r);
-      const cityX=Math.round(72*r), cityY=rows===32?0:3*r;
-      fitText(city.name,cityX,cityY,cols-cityX-(rows===32?1:Math.round(3*r)),footerY-cityY-1,Math.max(1,Math.floor(2*r)));
-      flightMetadata(city,footerY,scale);
+      const margin=Math.max(1,r), cityX=cols/2+4*r, cityWidth=cols-cityX-2*r;
+      // The full left half belongs to the landmark. Keep its original proportions.
+      icon(city.icon,0,margin,cols/2,rows-2*margin);
+      const codeY=rows===32?0:5*r, carrierY=rows===32?24:54*r;
+      const carrier=rows===32?city.carrierCode:city.carrierLabel;
+      text(city.code,cityX+(cityWidth-measure(city.code,scale))/2,codeY,scale,150);
+      text(carrier,cityX+(cityWidth-measure(carrier,scale))/2,carrierY,scale,150);
+      if(rows===32) {
+        // The coarse panel cannot fit all three full labels in one half.
+        const cityLabel=city.name==='SAN FRANCISCO'?'SAN FRAN':city.name;
+        fitText(cityLabel,cityX,8,cityWidth,15,1);
+        return;
+      }
+      const words=city.name.split(' '), choices=[[city.name]];
+      for(let i=1;i<words.length;i++) choices.push([words.slice(0,i).join(' '),words.slice(i).join(' ')]);
+      const scaleY=2*scale, cityY=17*r, cityHeight=32*r;
+      // Keep the city twice the labels' letter height, using narrower lettering
+      // when a long name needs it, without reducing its vertical prominence.
+      for(const scaleX of [2*scale,scale]) {
+        const lines=choices.find(lines=>lines.every(line=>measure(line,scaleX)<=cityWidth) && (lines.length*8-1)*scaleY<=cityHeight);
+        if(!lines) continue;
+        const top=cityY+(cityHeight-(lines.length*8-1)*scaleY)/2;
+        lines.forEach((line,i)=>text(line,cityX+(cityWidth-measure(line,scaleX))/2,top+i*8*scaleY,scaleX,255,scaleY));
+        return;
+      }
+      fitText(city.name,cityX,cityY,cityWidth,cityHeight,scale);
     }
     function captionMetrics(city) {
       const r=rows/64;
@@ -386,8 +407,10 @@
       el('pd-status').textContent=city.name+' · '+city.code+' → ORD · '+(hasFlightDetails?city.carrier+' · ':'')+phase;
       el('pd-note').textContent=state.layout==='c'?'Skyline buildings are schematic; the central landmark comes from the city library.':'Pixel layout preview; screen brightness and size are not calibrated to real hardware.';
       if(hasFlightDetails) el('pd-note').textContent='Origin airport at left; sample carrier at right. '+({e:'Flight details below the city and landmark.',f:'City and flight details below the landmark.',g:'City and flight details above the landmark.'})[state.layout]+' Display size and brightness are simulated.';
+      if(state.layout==='e') el('pd-note').textContent='Airport above the city; carrier below it. The landmark fills its half, with equally small, dim airport and carrier labels.';
       if(rows===32) el('pd-note').textContent+=' Coarse mode omits small details; long city names may use the whole sign.';
       if(rows===32 && hasFlightDetails) el('pd-note').textContent+=' Carrier names use compact codes.';
+      if(rows===32 && state.layout==='e' && city.name==='SAN FRANCISCO') el('pd-note').textContent+=' San Francisco is abbreviated to SAN FRAN on this coarse grid.';
       canvas.setAttribute('aria-label',phase+' layout. Sample flight from '+city.name+', '+city.airport+' ('+city.code+'), to Chicago O’Hare. '+(hasFlightDetails?'Carrier: '+city.carrier+'. ':'')+'Landmark: '+city.landmark+'. '+cols+' by '+rows+' LEDs.');
       root.dataset.city=String(state.city); root.dataset.phase=String(state.phase); root.dataset.layout=state.layout;
       root.dataset.cols=String(cols); root.dataset.rows=String(rows);

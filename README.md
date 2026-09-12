@@ -21,11 +21,11 @@ Open **`index.html`** in a modern browser. Everything is embedded, including pre
 | B · Postcard | 1:1 | City above its landmark |
 | C · Skyline | 3:1 | City above a schematic skyline and landmark |
 | D · Reveal | 2:1 | City, landmark, and combined views in sequence |
-| E · Landmark beside city | 2:1 | Larger landmark at left, city at right, airport/carrier footer |
-| F · City below | 2:1 | Landmark above origin airport (left), city (middle), and sample carrier (right); default |
+| E · Landmark beside city | 2:1 | Landmark fills the left half; airport above the city and carrier below it in the right half; default |
+| F · City below | 2:1 | Landmark above origin airport (left), city (middle), and sample carrier (right) |
 | G · City above | 2:1 | Airport, city, and carrier heading above a wide landmark area |
 
-All three layouts E–G show the origin airport code at left and a sample carrier at right, in slightly dimmer lettering than the city. At 128 × 64 LEDs, E reserves 64 × 49 pixels for the landmark; F and G reserve 120 × 49 (120 × 41 when a long city needs two lines), compared with approximately 40 × 54 in A. Each icon retains its original proportions, so a tall tower will not fill the same width as a bridge. At 32 rows, carriers use compact codes, and F/G stack the city and metadata lines; the extra information leaves less room for the landmark.
+All three layouts E–G include the origin airport and sample carrier. E prioritizes landmark > city > airport = carrier: the landmark uses a 64 × 62-pixel area at the default resolution, the city lettering is twice the metadata's height, and the airport and carrier share the same smaller size and dimmer brightness. Longer city names use narrower lettering or two lines. F and G retain their airport-left/carrier-right arrangement and reserve 120 × 49 pixels for artwork (120 × 41 when a long city needs two lines), compared with approximately 40 × 54 in A. Icons retain their original proportions without cropping. At 32 rows, carriers use compact codes, E abbreviates San Francisco to SAN FRAN, and F/G stack the city and metadata lines.
 
 Sample origins: New York (LGA), London (LHR), Paris (CDG), San Francisco (SFO), Seattle (SEA), and Tokyo (HND). All sample destinations are Chicago O’Hare (ORD). These samples do not represent current flights.
 
