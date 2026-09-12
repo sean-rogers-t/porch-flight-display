@@ -21,13 +21,15 @@ Open **`index.html`** in a modern browser. Everything is embedded, including pre
 | B · Postcard | 1:1 | City above its landmark |
 | C · Skyline | 3:1 | City above a schematic skyline and landmark |
 | D · Reveal | 2:1 | City, landmark, and combined views in sequence |
-| E · Landmark beside city | 2:1 | Larger landmark at left, complete city name at right; default |
-| F · City below | 2:1 | Wide landmark area above a small city caption |
-| G · City above | 2:1 | City heading above a wide landmark area |
+| E · Landmark beside city | 2:1 | Larger landmark at left, city at right, airport/carrier footer |
+| F · City below | 2:1 | Landmark above origin airport (left), city (middle), and sample carrier (right); default |
+| G · City above | 2:1 | Airport, city, and carrier heading above a wide landmark area |
 
-At 128 × 64 LEDs, E reserves 64 × 58 pixels for the landmark, F reserves 120 × 49, and G reserves 120 × 43, compared with approximately 40 × 54 in A. Each icon retains its original proportions, so a tall tower will not fill the same width as a bridge. E–G omit the extra airport route labels to give that space to the city and artwork.
+All three layouts E–G show the origin airport code at left and a sample carrier at right, in slightly dimmer lettering than the city. At 128 × 64 LEDs, E reserves 64 × 49 pixels for the landmark; F and G reserve 120 × 49 (120 × 41 when a long city needs two lines), compared with approximately 40 × 54 in A. Each icon retains its original proportions, so a tall tower will not fill the same width as a bridge. At 32 rows, carriers use compact codes, and F/G stack the city and metadata lines; the extra information leaves less room for the landmark.
 
 Sample origins: New York (LGA), London (LHR), Paris (CDG), San Francisco (SFO), Seattle (SEA), and Tokyo (HND). All sample destinations are Chicago O’Hare (ORD). These samples do not represent current flights.
+
+Sample carriers are United Airlines, British Airways, Air France, Alaska Airlines, and All Nippon Airways. They are illustrative data for comparing the footer, not live airline assignments.
 
 ## How it works
 

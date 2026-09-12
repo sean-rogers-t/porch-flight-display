@@ -96,7 +96,9 @@ test('landmarks are immediately available without browser image APIs', () => {
 });
 
 test('returning to the same selection produces the exact original frame', () => {
-  const app = emulator(), original = app.hash();
+  const app = emulator();
+  app.layout('e');
+  const original = app.hash();
   for (const city of ['3', '1', '5', '2', '4']) {
     app.select('pd-city', city);
     app.layout('f'); app.layout('g');

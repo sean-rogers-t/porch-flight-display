@@ -65,8 +65,8 @@ p { margin: 0 0 12px; }
     <span class="text-small text-muted">Sample flights · no live tracking</span>
   </div>
   <div class="pd-layouts" role="group" aria-label="Larger landmark layouts">
-    <button class="btn" type="button" data-layout="e" aria-pressed="true">E · Landmark beside city</button>
-    <button class="btn" type="button" data-layout="f" aria-pressed="false">F · City below</button>
+    <button class="btn" type="button" data-layout="e" aria-pressed="false">E · Landmark beside city</button>
+    <button class="btn" type="button" data-layout="f" aria-pressed="true">F · City below</button>
     <button class="btn" type="button" data-layout="g" aria-pressed="false">G · City above</button>
   </div>
   <details class="pd-earlier">
@@ -131,12 +131,12 @@ p { margin: 0 0 12px; }
     const ctx = canvas.getContext('2d');
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
     const cities = [
-      { name:'NEW YORK', code:'LGA', airport:'LaGuardia', icon:'us-new-york', landmark:'Statue of Liberty' },
-      { name:'LONDON', code:'LHR', airport:'Heathrow', icon:'gb-london', landmark:'Big Ben' },
-      { name:'PARIS', code:'CDG', airport:'Charles de Gaulle', icon:'fr-paris', landmark:'Eiffel Tower' },
-      { name:'SAN FRANCISCO', code:'SFO', airport:'San Francisco International', icon:'us-san-francisco', landmark:'Golden Gate Bridge' },
-      { name:'SEATTLE', code:'SEA', airport:'Seattle-Tacoma', icon:'us-seattle', landmark:'Space Needle' },
-      { name:'TOKYO', code:'HND', airport:'Haneda', icon:'jp-tokyo', landmark:'Temple' }
+      { name:'NEW YORK', code:'LGA', airport:'LaGuardia', carrier:'United Airlines', carrierLabel:'UNITED', carrierCode:'UA', icon:'us-new-york', landmark:'Statue of Liberty' },
+      { name:'LONDON', code:'LHR', airport:'Heathrow', carrier:'British Airways', carrierLabel:'BRITISH', carrierCode:'BA', icon:'gb-london', landmark:'Big Ben' },
+      { name:'PARIS', code:'CDG', airport:'Charles de Gaulle', carrier:'Air France', carrierLabel:'AIR FRANCE', carrierCode:'AF', icon:'fr-paris', landmark:'Eiffel Tower' },
+      { name:'SAN FRANCISCO', code:'SFO', airport:'San Francisco International', carrier:'United Airlines', carrierLabel:'UNITED', carrierCode:'UA', icon:'us-san-francisco', landmark:'Golden Gate Bridge' },
+      { name:'SEATTLE', code:'SEA', airport:'Seattle-Tacoma', carrier:'Alaska Airlines', carrierLabel:'ALASKA', carrierCode:'AS', icon:'us-seattle', landmark:'Space Needle' },
+      { name:'TOKYO', code:'HND', airport:'Haneda', carrier:'All Nippon Airways', carrierLabel:'ANA', carrierCode:'NH', icon:'jp-tokyo', landmark:'Temple' }
     ];
     // Each glyph is a real 5-by-7 bitmap. Letter edges always land on whole LEDs.
     const font = {
@@ -180,7 +180,7 @@ p { margin: 0 0 12px; }
       '-':['000','000','000','111','000','000','000'],
       ' ':['000','000','000','000','000','000','000']
     };
-    const state = { layout:'e', city:0, rows:64, brightness:75, hold:4, phase:0, playing:false, remaining:0 };
+    const state = { layout:'f', city:0, rows:64, brightness:75, hold:4, phase:0, playing:false, remaining:0 };
     const artwork = new Map();
     const masks = new Map();
     let cols = 128, rows = 64, pixels = new Uint8Array(cols * rows);
@@ -293,25 +293,54 @@ p { margin: 0 0 12px; }
       fitText(city.code+' > ORD',2*r,55*r,cols-4*r,7*r,Math.floor(r));
     }
     // These three arrangements keep both the name and landmark visible at 2:1.
-    // At 128 x 64, A reserves about 40 x 54 pixels for art; E reserves 64 x 58,
-    // F reserves 120 x 49, and G reserves 120 x 43. Artwork is never stretched.
+    // At 128 x 64, A reserves about 40 x 54 pixels for art; E reserves 64 x 49.
+    // F and G reserve 120 x 49 (41 when a long city name wraps).
+    // Artwork is never stretched.
+    function flightMetadata(city,y,scale) {
+      const padding=Math.round(3*rows/64);
+      const carrier=rows===32?city.carrierCode:city.carrierLabel;
+      text(city.code,padding,y,scale,190);
+      text(carrier,cols-padding-measure(carrier,scale),y,scale,190);
+    }
     function landmarkBeside(city) {
+      const r=rows/64, scale=Math.max(1,Math.floor(r));
+      const footerY=rows-2*r-7*scale;
+      icon(city.icon,3*r,3*r,64*r,footerY-6*r);
+      const cityX=Math.round(72*r), cityY=rows===32?0:3*r;
+      fitText(city.name,cityX,cityY,cols-cityX-(rows===32?1:Math.round(3*r)),footerY-cityY-1,Math.max(1,Math.floor(2*r)));
+      flightMetadata(city,footerY,scale);
+    }
+    function captionMetrics(city) {
       const r=rows/64;
-      icon(city.icon,3*r,3*r,64*r,58*r);
-      fitText(city.name,72*r,3*r,53*r,58*r,Math.max(1,Math.floor(2*r)));
+      const scale=Math.max(1,Math.floor(r)), padding=Math.round(3*r), gap=Math.max(2,4*r);
+      if(rows===32) {
+        const cityHeight=measure(city.name)>cols-2*padding?15:7;
+        return {scale,padding,cityHeight,height:cityHeight+9,stacked:true};
+      }
+      const cityX=padding+measure(city.code,scale)+gap;
+      const cityWidth=cols-padding-measure(city.carrierLabel,scale)-gap-cityX;
+      return {scale,cityX,cityWidth,height:(measure(city.name,scale)>cityWidth?16:8)*scale};
+    }
+    function flightCaption(city,y,metrics) {
+      const {scale,height}=metrics;
+      if(metrics.stacked) {
+        fitText(city.name,metrics.padding,y,cols-2*metrics.padding,metrics.cityHeight,1);
+        flightMetadata(city,y+metrics.cityHeight+2,1);
+        return;
+      }
+      fitText(city.name,metrics.cityX,y,metrics.cityWidth,height,scale);
+      flightMetadata(city,Math.round(y+(height-7*scale)/2),scale);
     }
     function cityBelow(city) {
-      const r=rows/64;
-      const captionHeight=rows===32 && measure(city.name)>122*r?15:Math.max(8,8*r);
-      const captionY=rows-2*r-captionHeight;
-      icon(city.icon,4*r,2*r,120*r,captionY-5*r);
-      fitText(city.name,3*r,captionY,122*r,captionHeight,Math.max(1,Math.floor(r)));
+      const r=rows/64, metrics=captionMetrics(city);
+      const captionY=rows-2*r-metrics.height;
+      icon(city.icon,4*r,2*r,120*r,Math.max(1,captionY-5*r));
+      flightCaption(city,captionY,metrics);
     }
     function cityAbove(city) {
-      const r=rows/64;
-      const titleHeight=Math.max(15,15*r), iconY=titleHeight+4*r;
-      fitText(city.name,3*r,2*r,122*r,titleHeight,Math.max(1,Math.floor(2*r)));
-      icon(city.icon,4*r,iconY,120*r,rows-iconY-2*r);
+      const r=rows/64, metrics=captionMetrics(city), iconY=metrics.height+5*r;
+      flightCaption(city,2*r,metrics);
+      icon(city.icon,4*r,iconY,120*r,Math.max(1,rows-iconY-2*r));
     }
     function skyline(city) {
       const r=rows/64;
@@ -387,17 +416,19 @@ p { margin: 0 0 12px; }
       if(changed || canvas.width!==cols*dotPitch || canvas.height!==rows*dotPitch) sizeDisplay();
       pixels=new Uint8Array(cols*rows);
       const city=cities[state.city];
+      const hasFlightDetails=['e','f','g'].includes(state.layout);
       ({a:combined,b:postcard,c:skyline,d:reveal,e:landmarkBeside,f:cityBelow,g:cityAbove})[state.layout](city);
       el('pd-sign').style.maxWidth=state.layout==='b'?'370px':'100%';
       el('pd-spec').textContent=cols+' × '+rows+' LEDs · '+(cols/rows)+':1';
       el('pd-phase').hidden=state.layout!=='d';
       el('pd-phase').textContent=['Show landmark','Show both','Show city'][state.phase];
       const phase=state.layout==='d'?['City first','Landmark','City + symbol'][state.phase]:({a:'City + symbol',b:'Postcard',c:'Schematic skyline',e:'Landmark beside city',f:'City below',g:'City above'})[state.layout];
-      el('pd-status').textContent=city.name+' · '+city.code+' → ORD · '+phase;
+      el('pd-status').textContent=city.name+' · '+city.code+' → ORD · '+(hasFlightDetails?city.carrier+' · ':'')+phase;
       el('pd-note').textContent=state.layout==='c'?'Skyline buildings are schematic; the central landmark comes from the city library.':'Pixel layout preview; screen brightness and size are not calibrated to real hardware.';
-      if(['e','f','g'].includes(state.layout)) el('pd-note').textContent='City and landmark stay together. '+({e:'More space beside the name.',f:'A small caption leaves more height for the landmark.',g:'A larger heading leaves a wide area for the landmark.'})[state.layout]+' Display size and brightness are simulated.';
+      if(hasFlightDetails) el('pd-note').textContent='Origin airport at left; sample carrier at right. '+({e:'Flight details below the city and landmark.',f:'City and flight details below the landmark.',g:'City and flight details above the landmark.'})[state.layout]+' Display size and brightness are simulated.';
       if(rows===32) el('pd-note').textContent+=' Coarse mode omits small details; long city names may use the whole sign.';
-      canvas.setAttribute('aria-label',phase+' layout. Sample flight from '+city.name+', '+city.airport+', to Chicago O’Hare. Landmark: '+city.landmark+'. '+cols+' by '+rows+' LEDs.');
+      if(rows===32 && hasFlightDetails) el('pd-note').textContent+=' Carrier names use compact codes.';
+      canvas.setAttribute('aria-label',phase+' layout. Sample flight from '+city.name+', '+city.airport+' ('+city.code+'), to Chicago O’Hare. '+(hasFlightDetails?'Carrier: '+city.carrier+'. ':'')+'Landmark: '+city.landmark+'. '+cols+' by '+rows+' LEDs.');
       root.dataset.city=String(state.city); root.dataset.phase=String(state.phase); root.dataset.layout=state.layout;
       root.dataset.cols=String(cols); root.dataset.rows=String(rows);
       root.dataset.litPixels=String(pixels.reduce((n,v)=>n+(v>0),0));
